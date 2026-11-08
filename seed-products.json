@@ -1,0 +1,219 @@
+[
+  {
+    "id": "daily-greens",
+    "name": "Daily Greens",
+    "detail": "Superfood blend · 30 servings",
+    "price": 38,
+    "rating": 4.8,
+    "variants": [
+      {
+        "id": "greens-powder-30",
+        "form": "Powder",
+        "potency": "Not specified",
+        "packageQuantity": "30 servings",
+        "price": 38
+      }
+    ],
+    "tag": "BEST SELLER",
+    "category": "Greens",
+    "type": "Greens powder",
+    "brand": "Form & Function",
+    "image": "https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=900&q=85",
+    "alt": "Fresh greens and colorful produce",
+    "description": "A simple daily greens blend made to bring a little more plant variety to your routine. Bright, easy to mix, and thoughtfully formulated for everyday use.",
+    "benefits": [
+      "A convenient serving of greens",
+      "Easy to add to your morning routine",
+      "30 servings per pouch"
+    ],
+    "ingredients": "Organic leafy greens, spirulina, chlorella, and natural citrus flavor.",
+    "howToUse": "Mix one scoop into 8–10 oz of cold water or your favorite smoothie.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  },
+  {
+    "id": "magnesium",
+    "name": "Magnesium, PM",
+    "detail": "Magnesium glycinate · 60 capsules",
+    "price": 28,
+    "rating": 4.7,
+    "variants": [
+      {
+        "id": "magnesium-capsules-60",
+        "form": "Capsules",
+        "potency": "Not specified",
+        "packageQuantity": "60 capsules",
+        "price": 28
+      }
+    ],
+    "tag": "SLEEP SUPPORT",
+    "category": "Sleep",
+    "type": "Magnesium",
+    "brand": "Dayform",
+    "image": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=900&q=85",
+    "alt": "Wellness supplements arranged in soft light",
+    "description": "A gentle magnesium glycinate formula for your evening wind-down. A clear, uncomplicated capsule made to fit into the routine you already have.",
+    "benefits": [
+      "Magnesium in glycinate form",
+      "An easy evening routine",
+      "60 capsules per bottle"
+    ],
+    "ingredients": "Magnesium bisglycinate, vegetable capsule, and rice flour.",
+    "howToUse": "Take two capsules in the evening with water, or follow your healthcare professional's advice.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  },
+  {
+    "id": "daily-protein",
+    "name": "Daily Protein",
+    "detail": "Vanilla plant protein · 20 servings",
+    "price": 42,
+    "rating": 4.6,
+    "variants": [
+      {
+        "id": "protein-powder-20",
+        "form": "Powder",
+        "potency": "Not specified",
+        "packageQuantity": "20 servings",
+        "price": 42
+      }
+    ],
+    "tag": "PLANT POWER",
+    "category": "Protein",
+    "type": "Plant protein",
+    "brand": "Form & Function",
+    "image": "https://images.unsplash.com/photo-1593095948071-474c5cc2989d?auto=format&fit=crop&w=900&q=85",
+    "alt": "A nourishing smoothie made with plant-based ingredients",
+    "description": "A smooth, plant-based vanilla protein that makes an easy addition to breakfast, post-workout smoothies, or wherever your day takes you.",
+    "benefits": [
+      "Plant-based protein blend",
+      "Smooth vanilla flavor",
+      "20 servings per pouch"
+    ],
+    "ingredients": "Pea protein, pumpkin seed protein, natural vanilla, and sea salt.",
+    "howToUse": "Shake one scoop with 10–12 oz of water or your preferred milk.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  },
+  {
+    "id": "omega-3",
+    "name": "Omega-3",
+    "detail": "Algae oil · 30 softgels",
+    "price": 32,
+    "rating": 4.8,
+    "variants": [
+      {
+        "id": "omega-3-softgels-30",
+        "form": "Softgels",
+        "potency": "Not specified",
+        "packageQuantity": "30 softgels",
+        "price": 32
+      }
+    ],
+    "tag": "DAILY ESSENTIAL",
+    "category": "Vitamins",
+    "type": "Omega-3",
+    "brand": "Goodwell",
+    "image": "https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=900&q=85",
+    "alt": "Minimal skincare and wellness bottles",
+    "description": "A plant-based omega-3 made with algae oil, a considered everyday alternative to fish oil. Easy-to-take softgels with no fishy aftertaste.",
+    "benefits": [
+      "Plant-based algae oil",
+      "No fishy aftertaste",
+      "30 softgels per bottle"
+    ],
+    "ingredients": "Algal oil with DHA and EPA, tapioca starch, and glycerin.",
+    "howToUse": "Take one softgel daily with a meal.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  },
+  {
+    "id": "vitamin-c",
+    "name": "Vitamin C",
+    "detail": "Citrus vitamin C · 60 capsules",
+    "price": 24,
+    "rating": 4.7,
+    "variants": [
+      {
+        "id": "vitamin-c-capsules-60",
+        "form": "Capsules",
+        "potency": "Not specified",
+        "packageQuantity": "60 capsules",
+        "price": 24
+      }
+    ],
+    "tag": "DAILY ESSENTIAL",
+    "category": "Vitamins",
+    "type": "Vitamin C",
+    "brand": "Goodwell",
+    "image": "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?auto=format&fit=crop&w=900&q=85",
+    "alt": "A bottle of daily vitamin supplements",
+    "description": "A straightforward vitamin C capsule with a short ingredient list, made for a simple, consistent daily routine.",
+    "benefits": [
+      "One-a-day capsule",
+      "60 servings per bottle",
+      "Simple, transparent formula"
+    ],
+    "ingredients": "Ascorbic acid, vegetable capsule, and rice flour.",
+    "howToUse": "Take one capsule daily with food.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  },
+  {
+    "id": "vitamin-d3",
+    "name": "Vitamin D3",
+    "detail": "Plant-based D3 · 60 softgels",
+    "price": 26,
+    "rating": 4.6,
+    "variants": [
+      {
+        "id": "vitamin-d3-softgels-60",
+        "form": "Softgels",
+        "potency": "Not specified",
+        "packageQuantity": "60 softgels",
+        "price": 26
+      }
+    ],
+    "tag": "PLANT BASED",
+    "category": "Vitamins",
+    "type": "Vitamin D3",
+    "brand": "Dayform",
+    "image": "https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=900&q=85",
+    "alt": "Minimal bottle of plant-based vitamin supplements",
+    "description": "Plant-based vitamin D3 in an easy-to-take softgel. A no-fuss formula designed to fit into your everyday routine.",
+    "benefits": [
+      "Plant-based source",
+      "60 softgels per bottle",
+      "Easy daily serving"
+    ],
+    "ingredients": "Lichen-derived vitamin D3, olive oil, and softgel capsule.",
+    "howToUse": "Take one softgel daily with a meal.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  },
+  {
+    "id": "b-complex",
+    "name": "B-Complex",
+    "detail": "Everyday B vitamins · 60 capsules",
+    "price": 29,
+    "rating": 4.8,
+    "variants": [
+      {
+        "id": "b-complex-capsules-60",
+        "form": "Capsules",
+        "potency": "Not specified",
+        "packageQuantity": "60 capsules",
+        "price": 29
+      }
+    ],
+    "tag": "DAILY ESSENTIAL",
+    "category": "Vitamins",
+    "type": "B-Complex",
+    "brand": "Form & Function",
+    "image": "https://images.unsplash.com/photo-1611080626919-7cf5a9dbab12?auto=format&fit=crop&w=900&q=85",
+    "alt": "Daily vitamins alongside fresh botanicals",
+    "description": "A balanced blend of B vitamins in one simple capsule, with a clear label and an easy daily serving.",
+    "benefits": [
+      "A blend of essential B vitamins",
+      "60 capsules per bottle",
+      "Straightforward daily serving"
+    ],
+    "ingredients": "B vitamin blend, vegetable capsule, and rice flour.",
+    "howToUse": "Take one capsule daily with food.",
+    "supplementInformation": "Demo catalog information. Refer to the product packaging for verified serving sizes and full supplement facts."
+  }
+]
