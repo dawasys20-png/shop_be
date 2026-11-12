@@ -1,8 +1,6 @@
 require("dotenv").config();
 
 const crypto = require("node:crypto");
-const fs = require("node:fs");
-const path = require("node:path");
 const bcrypt = require("bcrypt");
 const express = require("express");
 const morgan = require("morgan");
@@ -82,7 +80,7 @@ app.use((req, res, next) => {
   res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("Referrer-Policy", "same-origin");
   if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Content-Type, X-Order-Access-Token",
@@ -187,11 +185,29 @@ function parseProduct(value, expectedId) {
   const variantIds = new Set();
   product.variants = value.variants.map((variant) => {
     if (!isRecord(variant)) fail(400, "A purchase option is invalid.");
+    const specifications = variant.specifications ?? [];
+    if (!Array.isArray(specifications) || specifications.length > 30) {
+      fail(400, "A purchase option can have at most 30 specifications.");
+    }
+    const specificationKeys = new Set();
+    const parsedSpecifications = specifications.map((specification) => {
+      if (!isRecord(specification)) fail(400, "A product specification is invalid.");
+      const key = requiredText(specification.key, "Specification name", 100);
+      const specificationValue = requiredText(specification.value, "Specification value", 1000);
+      const normalizedKey = key.toLowerCase();
+      if (specificationKeys.has(normalizedKey)) {
+        fail(400, "Specification names must be unique within a purchase option.");
+      }
+      specificationKeys.add(normalizedKey);
+      return { key, value: specificationValue };
+    });
     const parsed = {
       id: requiredText(variant.id, "Purchase option ID", 100),
       form: requiredText(variant.form, "Purchase option form", 100),
       potency: requiredText(variant.potency, "Purchase option potency", 100),
       packageQuantity: requiredText(variant.packageQuantity, "Package quantity", 100),
+      portionSize: optionalText(variant.portionSize, "Portion size", 100),
+      totalServings: optionalText(variant.totalServings, "Total servings", 100),
       detail: optionalText(variant.detail ?? value.detail, "Purchase option details", 250),
       tag: optionalText(variant.tag ?? value.tag, "Product badge", 80),
       type: optionalText(variant.type ?? value.type, "Product type", 100),
@@ -208,6 +224,7 @@ function parseProduct(value, expectedId) {
       ),
       tone: optionalText(variant.tone ?? value.tone, "Product tone", 100),
       benefits: variant.benefits ?? value.benefits ?? [],
+      specifications: parsedSpecifications,
       bestBefore:
         variant.bestBefore === undefined || variant.bestBefore === ""
           ? undefined
@@ -403,6 +420,20 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
+function requireDeliveryOrAdmin(req, res, next) {
+  if (req.user?.role !== "delivery" && req.user?.role !== "admin") {
+    return res.status(403).json({ message: "Delivery team access is required." });
+  }
+  return next();
+}
+
+function rejectDeliveryRole(req, res, next) {
+  if (req.user?.role === "delivery") {
+    return res.status(403).json({ message: "Delivery accounts cannot perform this action." });
+  }
+  return next();
+}
+
 const supportedImageTypes = new Set([
   "image/jpeg",
   "image/png",
@@ -586,21 +617,6 @@ async function buildOrderItems(value) {
 async function initializeDatabase() {
   await runMigrations();
 
-  const productCount = await pool.query("SELECT COUNT(*)::int AS count FROM products");
-  if (productCount.rows[0].count === 0) {
-    const seedProducts = JSON.parse(
-      fs.readFileSync(path.join(__dirname, "seed-products.json"), "utf8"),
-    );
-    for (const value of seedProducts) {
-      const product = parseProduct(value);
-      await pool.query(
-        "INSERT INTO products (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO NOTHING",
-        [product.id, JSON.stringify(product)],
-      );
-    }
-    console.log(`Seeded ${seedProducts.length} catalog products.`);
-  }
-
   const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (adminEmail && adminPassword) {
@@ -629,6 +645,38 @@ async function initializeDatabase() {
     }
   } else {
     console.warn("ADMIN_EMAIL and ADMIN_PASSWORD are unset; the admin dashboard will remain locked.");
+  }
+
+  const deliveryEmail = process.env.DELIVERY_EMAIL?.trim().toLowerCase();
+  const deliveryPassword = process.env.DELIVERY_PASSWORD;
+  if (deliveryEmail && deliveryPassword) {
+    if (
+      deliveryPassword.length < 12 ||
+      Buffer.byteLength(deliveryPassword, "utf8") > 72 ||
+      deliveryPassword.startsWith("replace-with-")
+    ) {
+      throw new Error(
+        "DELIVERY_PASSWORD must be a unique password between 12 and 72 UTF-8 bytes.",
+      );
+    }
+    const existing = await pool.query("SELECT id, role FROM users WHERE email = $1", [deliveryEmail]);
+    if (existing.rowCount === 0) {
+      const id = crypto.randomUUID();
+      const passwordHash = await bcrypt.hash(deliveryPassword, 12);
+      await pool.query(
+        "INSERT INTO users (id, name, email, password_hash, role) VALUES ($1, $2, $3, $4, 'delivery')",
+        [id, process.env.DELIVERY_NAME?.trim() || "Delivery team", deliveryEmail, passwordHash],
+      );
+      console.log(`Created initial delivery account ${deliveryEmail}.`);
+    } else if (existing.rows[0].role !== "delivery") {
+      throw new Error(
+        "DELIVERY_EMAIL is already registered with another role. Configure a different delivery email.",
+      );
+    }
+  } else if (deliveryEmail || deliveryPassword) {
+    throw new Error("Set both DELIVERY_EMAIL and DELIVERY_PASSWORD to provision the delivery account.");
+  } else {
+    console.warn("DELIVERY_EMAIL and DELIVERY_PASSWORD are unset; delivery sign-in is disabled.");
   }
 }
 
@@ -746,8 +794,28 @@ app.get("/api/auth/me", asyncRoute(async (req, res) => {
 }));
 
 app.get("/api/products", asyncRoute(async (_req, res) => {
-  const result = await pool.query("SELECT data FROM products ORDER BY created_at ASC");
-  res.json({ products: result.rows.map((row) => row.data) });
+  const [productsResult, ratingsResult] = await Promise.all([
+    pool.query("SELECT data FROM products ORDER BY created_at ASC"),
+    pool.query(
+      `SELECT product_id, variant_id, AVG(rating)::float AS rating
+       FROM product_reviews
+       GROUP BY product_id, variant_id`,
+    ),
+  ]);
+  const ratingsByOption = new Map(
+    ratingsResult.rows.map((row) => [
+      `${row.product_id}:${row.variant_id}`,
+      row.rating,
+    ]),
+  );
+  const products = productsResult.rows.map(({ data }) => ({
+    ...data,
+    variants: data.variants.map((variant) => {
+      const rating = ratingsByOption.get(`${data.id}:${variant.id}`);
+      return rating === undefined ? variant : { ...variant, rating };
+    }),
+  }));
+  res.json({ products });
 }));
 
 const reviewAttempts = new Map();
@@ -811,6 +879,8 @@ app.get(
 
 app.post(
   "/api/products/:productId/variants/:variantId/reviews",
+  requireUser,
+  rejectDeliveryRole,
   rateLimitReviews,
   asyncRoute(async (req, res) => {
     await findProductVariant(req.params.productId, req.params.variantId);
@@ -922,7 +992,7 @@ app.delete("/api/products/:id", requireUser, requireAdmin, asyncRoute(async (req
 app.get("/api/orders", asyncRoute(async (req, res) => {
   const user = await optionalUser(req);
   if (!user) return res.json({ orders: [] });
-  const result = user.role === "admin"
+  const result = user.role === "admin" || user.role === "delivery"
     ? await pool.query("SELECT * FROM orders ORDER BY created_at DESC")
     : await pool.query("SELECT * FROM orders WHERE user_id = $1 ORDER BY created_at DESC", [user.id]);
   res.json({ orders: result.rows.map(mapOrder) });
@@ -950,13 +1020,15 @@ app.post("/api/orders/lookup", asyncRoute(async (req, res) => {
   res.json({ orders: orders.map(mapOrder) });
 }));
 
-app.post("/api/orders", asyncRoute(async (req, res) => {
+app.post("/api/orders", requireUser, asyncRoute(async (req, res) => {
+  if (req.user.role === "delivery") {
+    return res.status(403).json({ message: "Delivery accounts cannot place orders." });
+  }
   if (!isRecord(req.body)) fail(400, "Order details are required.");
   const contact = parseContact(req.body.contact);
   const items = await buildOrderItems(req.body.items);
-  const user = await optionalUser(req);
+  const user = req.user;
   const id = orderId();
-  const accessToken = user ? null : crypto.randomBytes(32).toString("base64url");
   const inserted = await pool.query(
     `INSERT INTO orders
       (id, user_id, guest_token_hash, contact, items, subtotal, shipping, total)
@@ -964,8 +1036,8 @@ app.post("/api/orders", asyncRoute(async (req, res) => {
      RETURNING *`,
     [
       id,
-      user?.id || null,
-      accessToken ? hashAccessToken(accessToken) : null,
+      user.id,
+      null,
       JSON.stringify(contact),
       JSON.stringify(items.items),
       items.subtotal,
@@ -973,7 +1045,7 @@ app.post("/api/orders", asyncRoute(async (req, res) => {
       items.total,
     ],
   );
-  res.status(201).json({ order: mapOrder(inserted.rows[0]), accessToken });
+  res.status(201).json({ order: mapOrder(inserted.rows[0]), accessToken: null });
 }));
 
 app.get("/api/orders/:id", asyncRoute(async (req, res) => {
@@ -984,7 +1056,10 @@ app.get("/api/orders/:id", asyncRoute(async (req, res) => {
   const token = req.get("x-order-access-token");
   const hasGuestAccess = token &&
     constantTimeHexEqual(order.guest_token_hash, hashAccessToken(token));
-  const hasUserAccess = user?.role === "admin" || user?.id === order.user_id;
+  const hasUserAccess =
+    user?.role === "admin" ||
+    user?.role === "delivery" ||
+    user?.id === order.user_id;
   if (!hasGuestAccess && !hasUserAccess) fail(404, "Order not found.");
   res.json({ order: mapOrder(order) });
 }));
@@ -1042,6 +1117,17 @@ app.put("/api/admin/orders/:id", requireUser, requireAdmin, asyncRoute(async (re
       items.total,
       status,
     ],
+  );
+  if (!updated.rowCount) fail(404, "Order not found.");
+  res.json({ order: mapOrder(updated.rows[0]) });
+}));
+
+app.patch("/api/admin/orders/:id/status", requireUser, requireDeliveryOrAdmin, asyncRoute(async (req, res) => {
+  const status = req.body?.status;
+  if (!validOrderStatuses.has(status)) fail(400, "Order status is invalid.");
+  const updated = await pool.query(
+    `UPDATE orders SET status = $2 WHERE id = $1 RETURNING *`,
+    [req.params.id, status],
   );
   if (!updated.rowCount) fail(404, "Order not found.");
   res.json({ order: mapOrder(updated.rows[0]) });
