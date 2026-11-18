@@ -16,6 +16,8 @@ Express 5 API for customer accounts, the product catalog, guest/customer orders,
    `yarn start` runs without file watching.
 4. Start the website from `C:\Users\2026\Documents\shop` with `yarn dev`. The client uses `http://<website-host>:4000/api` by default. Set `NEXT_PUBLIC_API_URL` if the API is hosted elsewhere.
 
+Password reset emails require `APP_URL` (the public storefront origin), `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`. Set `SMTP_SECURE=true` when the mail server requires implicit TLS (port 465 enables it automatically). Keep SMTP credentials in the backend environment only. The reset flow uses single-use links that expire after one hour.
+
 To enable the VitaHub shopping assistant, set `GROQ_API_KEY` in the backend's `.env` file. The default model is Groq's economical `llama-3.1-8b-instant`; `GROQ_MODEL` can override it. The API key is used only by the backend and must never be added to a `NEXT_PUBLIC_` variable. The public assistant endpoint applies in-memory limits of 8 requests per minute and 60 per 24-hour window per client IP, per running backend process, with a 600-character message limit and bounded conversation/catalogue context. Without a key, the endpoint responds with a configuration error and the rest of the storefront remains available.
 
 The API listens on port `4000` by default. `GET /health` checks both the server and its PostgreSQL connection. Customer signup is public; administrator accounts are created from `ADMIN_EMAIL` and `ADMIN_PASSWORD` the first time the API starts. To provision a delivery account, set `DELIVERY_NAME`, `DELIVERY_EMAIL`, and a unique `DELIVERY_PASSWORD` of at least 12 characters in `.env`; the account is created on API startup and can sign in at `/delivery/login`. Admin and delivery permissions are never selectable during public signup. Delivery accounts can view order and delivery details and update order status, but cannot access admin tools, edit orders, place orders, or submit reviews.
@@ -33,6 +35,8 @@ Create future migrations with `yarn migrate:create <migration-name>`. Commit the
 | `POST` | `/api/auth/signup` | Public | Create a customer account |
 | `POST` | `/api/auth/login` | Public | Sign in and set an HttpOnly session cookie |
 | `POST` | `/api/auth/admin/login` | Public | Sign in only when the credentials belong to an administrator |
+| `POST` | `/api/auth/forgot-password` | Public, rate limited | Email a one-hour password reset link when the account exists |
+| `POST` | `/api/auth/reset-password` | Public, rate limited | Change the password with a valid single-use reset token |
 | `POST` | `/api/auth/refresh` | Public | Rotate a valid refresh token and renew the session |
 | `POST` | `/api/auth/logout` | Public | Clear the session cookie |
 | `GET` | `/api/auth/me` | Public | Return the current user, if signed in |

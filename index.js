@@ -9,6 +9,7 @@ const cloudinary = require("cloudinary").v2;
 const { Pool } = require("pg");
 const { runMigrations } = require("./scripts/migrate");
 const { createRefreshHandler } = require("./auth-refresh");
+const { sendPasswordResetEmail } = require("./password-reset-email");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -611,19 +612,41 @@ function rateLimitAuth(req, res, next) {
   if (current.count > 30) {
     return res
       .status(429)
-      .json({ message: "Too many sign-in attempts. Try again shortly." });
+      .json({ message: "Too many authentication attempts. Try again shortly." });
   }
   return next();
 }
 
 const authAttempts = new Map();
+const passwordResetAttempts = new Map();
 const authLimiterCleanup = setInterval(() => {
   const cutoff = Date.now() - 60_000;
   for (const [key, value] of authAttempts) {
     if (value.startedAt < cutoff) authAttempts.delete(key);
   }
+  const resetCutoff = Date.now() - 15 * 60_000;
+  for (const [key, value] of passwordResetAttempts) {
+    if (value.startedAt < resetCutoff) passwordResetAttempts.delete(key);
+  }
 }, 60_000);
 authLimiterCleanup.unref();
+
+function rateLimitPasswordReset(req, res, next) {
+  const now = Date.now();
+  const key = req.ip || req.socket.remoteAddress || "unknown";
+  const current = passwordResetAttempts.get(key);
+  if (!current || now - current.startedAt >= 15 * 60_000) {
+    passwordResetAttempts.set(key, { startedAt: now, count: 1 });
+    return next();
+  }
+  current.count += 1;
+  if (current.count > 5) {
+    return res.status(429).json({
+      message: "Too many password reset attempts. Try again later.",
+    });
+  }
+  return next();
+}
 
 const assistantAttempts = new Map();
 const assistantLimiterCleanup = setInterval(
@@ -1076,6 +1099,136 @@ app.post(
     const { refreshToken } = setAuthCookies(res, user.id);
     await storeRefreshToken(user.id, refreshToken);
     res.json({ user: publicUser(user) });
+  }),
+);
+
+app.post(
+  "/api/auth/forgot-password",
+  rateLimitPasswordReset,
+  asyncRoute(async (req, res) => {
+    if (!isRecord(req.body)) fail(400, "An email address is required.");
+    const email = requiredText(req.body.email, "Email", 254).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      fail(400, "Enter a valid email address.");
+    }
+
+    const genericMessage =
+      "If an account exists for that email, a password reset link has been sent.";
+    const result = await pool.query(
+      "SELECT id, name, email FROM users WHERE email = $1",
+      [email],
+    );
+    const user = result.rows[0];
+    if (!user) return res.json({ message: genericMessage });
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashToken(token);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "DELETE FROM password_reset_tokens WHERE expires_at <= NOW()",
+      );
+      await client.query(
+        "DELETE FROM password_reset_tokens WHERE user_id = $1",
+        [user.id],
+      );
+      await client.query(
+        "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at) VALUES ($1, $2, $3, $4)",
+        [
+          crypto.randomUUID(),
+          user.id,
+          tokenHash,
+          new Date(Date.now() + 60 * 60 * 1000),
+        ],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Could not roll back password reset token creation:", rollbackError);
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    try {
+      await sendPasswordResetEmail({ email: user.email, name: user.name, token });
+    } catch (error) {
+      console.error("Could not send password reset email:", error);
+      try {
+        await pool.query(
+          "DELETE FROM password_reset_tokens WHERE token_hash = $1",
+          [tokenHash],
+        );
+      } catch (cleanupError) {
+        console.error("Could not remove unsent password reset token:", cleanupError);
+      }
+    }
+
+    return res.json({ message: genericMessage });
+  }),
+);
+
+app.post(
+  "/api/auth/reset-password",
+  rateLimitPasswordReset,
+  asyncRoute(async (req, res) => {
+    if (!isRecord(req.body)) fail(400, "A reset token and new password are required.");
+    const { token, newPassword } = req.body;
+    if (typeof token !== "string" || !/^[a-f0-9]{64}$/i.test(token)) {
+      fail(400, "This password reset link is invalid or has expired.");
+    }
+    if (
+      typeof newPassword !== "string" ||
+      newPassword.length < 8 ||
+      Buffer.byteLength(newPassword, "utf8") > 72
+    ) {
+      fail(400, "Password must be between 8 and 72 UTF-8 bytes.");
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        "SELECT user_id FROM password_reset_tokens WHERE token_hash = $1 AND expires_at > NOW() FOR UPDATE",
+        [hashToken(token)],
+      );
+      const reset = result.rows[0];
+      if (!reset) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ message: "This password reset link is invalid or has expired." });
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 12);
+      await client.query("UPDATE users SET password_hash = $1 WHERE id = $2", [
+        passwordHash,
+        reset.user_id,
+      ]);
+      await client.query(
+        "DELETE FROM password_reset_tokens WHERE user_id = $1",
+        [reset.user_id],
+      );
+      await client.query("DELETE FROM refresh_tokens WHERE user_id = $1", [
+        reset.user_id,
+      ]);
+      await client.query("COMMIT");
+      clearAuthCookies(res);
+      return res.json({ message: "Your password has been reset. You can now sign in." });
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Could not roll back password reset:", rollbackError);
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }),
 );
 
